@@ -57,10 +57,12 @@ DNS="${DNS}"
 EOF
 chmod 600 wgconfigs/.env
 
+WG_SERVER_IPV6_SUFFIX=$(gen_block):$(gen_block):$(gen_block):$(gen_block)
+
 cat > wgconfigs/${WG_INTERFACE}.conf << EOF 
 [Interface]
 Address = ${WG_IPV4_PREFIX}1/24
-Address = ${WG_IPV6_PREFIX}1/64
+Address = ${WG_IPV6_PREFIX}${WG_SERVER_IPV6_SUFFIX}/64
 SaveConfig = true
 PostUp = iptables -A FORWARD -i %i -j ACCEPT -w 10; iptables -t nat -A POSTROUTING -o ${PUBLIC_NETWORK_INTERFACE} -j MASQUERADE -w 10
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${PUBLIC_NETWORK_INTERFACE} -j MASQUERADE
