@@ -15,6 +15,7 @@ then
     exit 1
 fi
 mkdir wgconfigs
+chmod 700 wgconfigs
 
 # Вспомогательная функция для герерации IPv6 адресов
 IPV6_ARRAY=( 1 2 3 4 5 6 7 8 9 0 a b c d e f )
@@ -54,6 +55,7 @@ WG_SERVER_INTERFACE=${WG_INTERFACE}
 WG_CLIENT_ALLOWED_IPS="${WG_CLIENT_ALLOWED_IPS}"
 DNS="${DNS}"
 EOF
+chmod 600 wgconfigs/.env
 
 cat > wgconfigs/${WG_INTERFACE}.conf << EOF 
 [Interface]
@@ -65,5 +67,6 @@ PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -
 ListenPort = ${WG_SERVER_PORT}
 PrivateKey = ${WG_SERVER_PRIVATE_KEY}
 EOF
+chmod 600 wgconfigs/${WG_INTERFACE}.conf
 
 exit 0
