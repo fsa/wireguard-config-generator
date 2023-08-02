@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-only
 
+WG_IPV6_PREFIX_LEN=64
+
 WG_INTERFACE=wg0
+
+WG_IPV6_NAT=false
 
 DNS="1.1.1.1, 1.0.0.1"
 
@@ -23,6 +27,15 @@ gen_block () {
     echo ${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}
 }
 
+gen_block_2 () {
+    echo ${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}
+}
+
+IPV6_ARRAY_SUFFIX_FIRST65=( 8 9 a b c d e f )
+gen_block_suffix_first65 () {
+    echo ${IPV6_ARRAY_SUFFIX_FISRT65[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}
+}
+
 echo generating server config
 # generate the [Interface] part for the server
 if [ -z "$WG_SERVER_ADDRESS" ]; then
@@ -37,7 +50,7 @@ if [ -z "$WG_IPV4_PREFIX" ]; then
     WG_IPV4_PREFIX=10.$(shuf -i1-254 -n1).$(shuf -i1-254 -n1).
 fi
 if [ -z "$WG_IPV6_PREFIX" ]; then
-    WG_IPV6_PREFIX=fd00:$(gen_block):$(gen_block):$(gen_block):
+    WG_IPV6_PREFIX=fd$(gen_block_2):$(gen_block):$(gen_block):$(gen_block):
 fi
 if [ -z "$WG_SERVER_PORT" ]; then
     WG_SERVER_PORT=$(shuf -i10000-65535 -n1)
@@ -45,9 +58,18 @@ fi
 WG_SERVER_PRIVATE_KEY=$(wg genkey)
 WG_SERVER_PUBLIC_KEY=$(echo "$WG_SERVER_PRIVATE_KEY" | wg pubkey)
 
+if [ "$WG_IPV6_PREFIX_LEN" -eq 65 ]
+then
+    WG_SERVER_IPV6_SUFFIX=$(gen_block_suffix_first65):$(gen_block):$(gen_block):$(gen_block)
+else
+    WG_IPV6_PREFIX_LEN=64
+    WG_SERVER_IPV6_SUFFIX=$(gen_block):$(gen_block):$(gen_block):$(gen_block)
+fi
+
 cat > wgconfigs/.env << EOF
 WG_IPV4_PREFIX=${WG_IPV4_PREFIX}
 WG_IPV6_PREFIX=${WG_IPV6_PREFIX}
+WG_IPV6_PREFIX_LEN=${WG_IPV6_PREFIX_LEN}
 WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY}
 WG_SERVER_ADDRESS=${WG_SERVER_ADDRESS}
 WG_SERVER_PORT=${WG_SERVER_PORT}
@@ -57,18 +79,23 @@ DNS="${DNS}"
 EOF
 chmod 600 wgconfigs/.env
 
-WG_SERVER_IPV6_SUFFIX=$(gen_block):$(gen_block):$(gen_block):$(gen_block)
-
 cat > wgconfigs/${WG_INTERFACE}.conf << EOF 
 [Interface]
 Address = ${WG_IPV4_PREFIX}1/24
-Address = ${WG_IPV6_PREFIX}${WG_SERVER_IPV6_SUFFIX}/64
+Address = ${WG_IPV6_PREFIX}${WG_SERVER_IPV6_SUFFIX}/${WG_IPV6_PREFIX_LEN}
 SaveConfig = true
-PostUp = iptables -A FORWARD -i %i -j ACCEPT -w 10; iptables -t nat -A POSTROUTING -o ${PUBLIC_NETWORK_INTERFACE} -j MASQUERADE -w 10
-PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${PUBLIC_NETWORK_INTERFACE} -j MASQUERADE
 ListenPort = ${WG_SERVER_PORT}
 PrivateKey = ${WG_SERVER_PRIVATE_KEY}
+PostUp = iptables -A FORWARD -i %i -j ACCEPT -w 10; iptables -t nat -A POSTROUTING -o ${PUBLIC_NETWORK_INTERFACE} -j MASQUERADE -w 10
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${PUBLIC_NETWORK_INTERFACE} -j MASQUERADE
 EOF
 chmod 600 wgconfigs/${WG_INTERFACE}.conf
+
+if [ "$WG_IPV6_NAT" = "true" ]; then
+cat >> wgconfigs/${WG_INTERFACE}.conf << EOF 
+PostUp = ip6tables -A FORWARD -i %i -j ACCEPT; ip6tables -t nat -A POSTROUTING -o ${PUBLIC_NETWORK_INTERFACE} -j MASQUERADE -w 10
+PostDown = ip6tables -D FORWARD -i %i -j ACCEPT; ip6tables -t nat -D POSTROUTING -o ${PUBLIC_NETWORK_INTERFACE} -j MASQUERADE
+EOF
+fi
 
 exit 0

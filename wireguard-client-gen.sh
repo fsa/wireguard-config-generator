@@ -12,12 +12,23 @@ gen_block () {
     echo ${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}
 }
 
+IPV6_ARRAY_SUFFIX_FIRST65=( 8 9 a b c d e f )
+gen_block_suffix_first65 () {
+    echo ${IPV6_ARRAY_SUFFIX_FISRT65[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}${IPV6_ARRAY[$RANDOM%16]}
+}
+
 if [ ! -f wgconfigs/client_ip_suffix.txt ]; then
     CLIENT_IP_SUFFIX=2
 else
     read CLIENT_IP_SUFFIX < wgconfigs/client_ip_suffix.txt
 fi
-CLIENT_IP6_SUFFIX=$(gen_block):$(gen_block):$(gen_block):$(gen_block);
+if [ "$WG_IPV6_PREFIX_LEN" -eq 65 ]
+then
+    CLIENT_IP6_SUFFIX=$(gen_block_suffix_first65):$(gen_block):$(gen_block):$(gen_block)
+else
+    WG_IPV6_PREFIX_LEN=64
+    CLIENT_IP6_SUFFIX=$(gen_block):$(gen_block):$(gen_block):$(gen_block)
+fi
 mkdir -p wgconfigs/clientconfigs
 chmod 700 wgconfigs/clientconfigs
 
